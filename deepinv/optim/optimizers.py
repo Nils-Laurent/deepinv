@@ -191,7 +191,7 @@ class BaseOptim(nn.Module):
         # If given as a single number, we convert it to a list of 1 element.
         # If given as a list of more than 1 element, it should have lenght ``max_iter``.
         for key, value in zip(params_algo.keys(), params_algo.values()):
-            if not isinstance(value, Iterable):
+            if not isinstance(value, Iterable) or isinstance(value, str) or isinstance(value, dict):
                 params_algo[key] = [value]
             else:
                 if len(params_algo[key]) > 1 and len(params_algo[key]) < self.max_iter:

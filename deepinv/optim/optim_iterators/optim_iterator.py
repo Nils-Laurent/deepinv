@@ -62,6 +62,24 @@ class OptimIterator(nn.Module):
         """
         return beta * u + (1 - beta) * v
 
+    def inertial_step(self, x_est, x_prev, it):
+        r"""
+        Compute the inertial iterate
+
+        :param torch.Tensor x_est: current estimate
+        :param torch.Tensor x_prev: previous estimate
+        :param int it: current iteration index
+        :return: inertial iterate
+        """
+        if self.d == 0 or it == 0:
+            return x_est
+
+        tk = ((it + self.a - 1) / self.a) ** self.d
+        tk_next = ((it + self.a) / self.a) ** self.d
+        alpha = (tk - 1) / tk_next
+
+        return x_est + alpha * (x_est - x_prev)
+
     def forward(self, X, cur_data_fidelity, cur_prior, cur_params, y, physics):
         r"""
         General form of a single iteration of splitting algorithms for minimizing :math:`F =  f + \lambda g`, alternating
