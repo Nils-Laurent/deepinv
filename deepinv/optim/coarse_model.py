@@ -25,7 +25,7 @@ class CoarseModel(torch.nn.Module):
             y = cit.projection(y)
             cit.build_cit_matrices(x0)
             ph = ph.to_coarse()
-            sz_vec.append(sz)
+            sz_vec.append(sz.item())
         sz_vec.reverse()
         return sz_vec
 
@@ -36,7 +36,8 @@ class CoarseModel(torch.nn.Module):
         if hasattr(self.g, 'denoiser'):
             sigma_d = params['sigma_denoiser']
             # todo: verify if sigma_d is taken into account correctly
-            grad_g = self.g.grad(x, sigma_denoiser=sigma_d) / sigma_d**2
+            # grad_g = self.g.grad(x, sigma_denoiser=sigma_d) / sigma_d**2
+            grad_g = self.g.grad(x, sigma_denoiser=sigma_d)
         elif hasattr(self.g, 'moreau_grad') and 'gamma_moreau' in params.keys():
             grad_g = self.g.moreau_grad(x, params["g_param"] * params['gamma_moreau'])
         else:

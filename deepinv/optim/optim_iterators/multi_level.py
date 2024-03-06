@@ -7,6 +7,8 @@ class MultiLevelIteration(OptimIterator):
         super(MultiLevelIteration, self).__init__(**kwargs)
         self.fine_iteration=fine_iteration
         self.ml_iter = 0
+        self.F_fn = fine_iteration.F_fn
+        self.has_cost = fine_iteration.has_cost
 
     def multilevel_step(self, X, data_fidelity, prior, params, y, physics):
         if params['level'] == 1 or self.ml_iter >= params['iml_max_iter']:
@@ -17,14 +19,19 @@ class MultiLevelIteration(OptimIterator):
         model = CoarseModel(prior, data_fidelity, physics, params)
         diff = model(X, y, params)
         step = 1.0
+
         if self.fine_iteration.has_cost:
             # performing backtracking if cost exists
-            print("bt", params['level'])
-            x0 = X['est'][0]
-            while (self.fine_iteration.F_fn(x0, prior, params, y, physics) >
-                self.fine_iteration.F_fn(diff, y, params)):
+            def cost_fn(x):
+                return self.F_fn(x, data_fidelity, prior, params, y, physics)
 
+            print(f"backtracking level {params['level']}")
+            x0 = X['est'][0]
+            nb = 0
+            while cost_fn(x0 + step * diff) > cost_fn(x0):
                 step = step / 2
+                nb += 1
+            print(f"divided {nb} times by 2")
         x_bt = X['est'][0] + step * diff
         Y = {'est': [x_bt]}
 
