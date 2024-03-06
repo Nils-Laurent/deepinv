@@ -16,8 +16,15 @@ class MultiLevelIteration(OptimIterator):
         self.ml_iter += 1
         model = CoarseModel(prior, data_fidelity, physics, params)
         diff = model(X, y, params)
-        # todo: perform backtracking in case it is possible
         step = 1.0
+        if self.fine_iteration.has_cost:
+            # performing backtracking if cost exists
+            print("bt", params['level'])
+            x0 = X['est'][0]
+            while (self.fine_iteration.F_fn(x0, prior, params, y, physics) >
+                self.fine_iteration.F_fn(diff, y, params)):
+
+                step = step / 2
         x_bt = X['est'][0] + step * diff
         Y = {'est': [x_bt]}
 
