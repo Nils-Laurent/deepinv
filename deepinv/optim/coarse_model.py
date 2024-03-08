@@ -32,18 +32,15 @@ class CoarseModel(torch.nn.Module):
     def grad(self, x, y, physics, params):
         grad_f = self.f.grad(x, y, physics)
 
-        # if self.g.denoiser
         if hasattr(self.g, 'denoiser'):
-            sigma_d = params['sigma_denoiser']
-            # todo: verify if sigma_d is taken into account correctly
-            # grad_g = self.g.grad(x, sigma_denoiser=sigma_d) / sigma_d**2
-            grad_g = self.g.grad(x, sigma_denoiser=sigma_d)
+            grad_g = self.g.grad(x, sigma_denoiser=params['g_param'])
         elif hasattr(self.g, 'moreau_grad') and 'gamma_moreau' in params.keys():
-            grad_g = self.g.moreau_grad(x, params["g_param"] * params['gamma_moreau'])
+            grad_g = self.g.moreau_grad(x, params['gamma_moreau'])
         else:
             grad_g = self.g.grad(x)
 
-        return grad_f + params["g_param"] * grad_g
+        # todo: change lambda when deepinv PR merged
+        return params["lambda"] * grad_f + grad_g
 
     def forward(self, X, y_h, params_ml_h, grad=None):
         # todo: find a better way to deal with circular imports
@@ -58,9 +55,13 @@ class CoarseModel(torch.nn.Module):
         params = MultiLevelIteration.get_level_params(params_ml)
 
         # todo: compute lipschitz constant in a clever way
-        params['stepsize'] = 1.0 / (1 + params['gamma_moreau'])
+        if 'gamma_moreau' in params.keys():
+            params_ml['stepsize'] = 1.0 / (1 + params['gamma_moreau'])
 
-        x0_h = X['est'][0] # primal value of 'est'
+        if isinstance(X['est'], torch.Tensor):
+            x0_h = X['est']
+        else:
+            x0_h = X['est'][0] # primal value of 'est'
 
         # Projection
         self.cit.build_cit_matrices(x0_h)

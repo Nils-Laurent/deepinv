@@ -53,12 +53,12 @@ class GDIteration(OptimIterator):
         return {"est": (x,), "cost": F}
 
     def denoiser_MSE_step(self, x, data_fidelity, prior, y, physics, params):
-        den_y = prior.denoiser(y, params['sigma_denoiser'])
         params1 = params.copy()
         params1['stepsize'] = 1.0
+        params1['mse_step'] = False
         grad_x = self.gradient(x, data_fidelity, prior, params1, y, physics)
 
-        diff = torch.flatten(physics.A(x) - den_y)
+        diff = torch.flatten(physics.A(x) - prior.denoiser(y, params['g_param']))
         grad_vec = torch.flatten(grad_x)
         return torch.dot(diff, grad_vec) / torch.norm(grad_vec, p=2)**2
 
@@ -70,6 +70,10 @@ class GDIteration(OptimIterator):
             )
         else:
             grad = self.grad_fn(x_prev)
+
+        if 'mse_step' in cur_params.keys() and cur_params['mse_step'] is True:
+            cur_params["stepsize"] = self.denoiser_MSE_step(x_prev, cur_data_fidelity, cur_prior, y, physics, cur_params)
+            print(f"level {cur_params['level']}, step {cur_params['stepsize']}")
 
         return cur_params["stepsize"] * grad
 
