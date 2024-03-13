@@ -39,8 +39,7 @@ class CoarseModel(torch.nn.Module):
         else:
             grad_g = self.g.grad(x)
 
-        # todo: change lambda when deepinv PR merged
-        return params["lambda"] * grad_f + grad_g
+        return grad_f + params["lambda"] * grad_g
 
     def forward(self, X, y_h, params_ml_h, grad=None):
         # todo: find a better way to deal with circular imports
@@ -56,7 +55,7 @@ class CoarseModel(torch.nn.Module):
 
         # todo: compute lipschitz constant in a clever way
         if 'gamma_moreau' in params.keys():
-            params_ml['stepsize'] = 1.0 / (1 + params['gamma_moreau'])
+            params_ml['stepsize'] = 1.0 / (1.0 + params['gamma_moreau'])
 
         if isinstance(X['est'], torch.Tensor):
             x0_h = X['est']
@@ -68,16 +67,19 @@ class CoarseModel(torch.nn.Module):
         x0 = self.cit.projection(x0_h)
         y = self.cit.projection(y_h)
 
-        if grad is None:
-            grad_x0 = self.grad(x0_h, y_h, self.physics, params_h)
+        if params['scale_coherent_grad'] is True:
+            if grad is None:
+                grad_x0 = self.grad(x0_h, y_h, self.physics, params_h)
+            else:
+                grad_x0 = grad(x0_h)
+
+            v = self.cit.projection(grad_x0)
+            v -= self.grad(x0, y, self.cph, params)
+
+            # Coarse gradient (first order coherent)
+            grad_coarse = lambda x: self.grad(x, y, self.cph, params) + v
         else:
-            grad_x0 = grad(x0_h)
-
-        v = self.cit.projection(grad_x0)
-        v -= self.grad(x0, y, self.cph, params)
-
-        # Coarse gradient (first order coherent)
-        grad_coarse = lambda x: self.grad(x, y, self.cph, params) + v
+            grad_coarse = lambda x: self.grad(x, y, self.cph, params)
 
         level_iteration = GDIteration(has_cost=False, grad_fn=grad_coarse)
         iteration = MultiLevelIteration(level_iteration, has_cost=False)
