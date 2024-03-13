@@ -35,11 +35,11 @@ class CoarseModel(torch.nn.Module):
         if hasattr(self.g, 'denoiser'):
             grad_g = self.g.grad(x, sigma_denoiser=params['g_param'])
         elif hasattr(self.g, 'moreau_grad') and 'gamma_moreau' in params.keys():
-            grad_g = self.g.moreau_grad(x, params['gamma_moreau'])
+            grad_g = self.g.moreau_grad(x, gamma=params['gamma_moreau'])
         else:
             grad_g = self.g.grad(x)
 
-        return grad_f + params["lambda"] * grad_g
+        return grad_f + params['lambda'] * grad_g
 
     def forward(self, X, y_h, params_ml_h, grad=None):
         # todo: find a better way to deal with circular imports
@@ -55,7 +55,8 @@ class CoarseModel(torch.nn.Module):
 
         # todo: compute lipschitz constant in a clever way
         if 'gamma_moreau' in params.keys():
-            params_ml['stepsize'] = 1.0 / (1.0 + params['gamma_moreau'])
+            f_lipschitz = 1.0
+            params_ml['stepsize'] = 1.0 / (f_lipschitz + params['gamma_moreau'])
 
         if isinstance(X['est'], torch.Tensor):
             x0_h = X['est']
@@ -82,7 +83,7 @@ class CoarseModel(torch.nn.Module):
             grad_coarse = lambda x: self.grad(x, y, self.cph, params)
 
         level_iteration = GDIteration(has_cost=False, grad_fn=grad_coarse)
-        iteration = MultiLevelIteration(level_iteration, has_cost=False)
+        iteration = MultiLevelIteration(level_iteration, grad_fn=grad_coarse, has_cost=False)
 
         # todo: verify if f_init is used correctly
         f_init = lambda def_y, def_ph: {'est': x0, 'cost': None}

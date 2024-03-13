@@ -3,12 +3,13 @@ from deepinv.optim.coarse_model import CoarseModel
 
 
 class MultiLevelIteration(OptimIterator):
-    def __init__(self, fine_iteration, **kwargs):
+    def __init__(self, fine_iteration, grad_fn = None, **kwargs):
         super(MultiLevelIteration, self).__init__(**kwargs)
         self.fine_iteration=fine_iteration
         self.ml_iter = 0
         self.F_fn = fine_iteration.F_fn
         self.has_cost = fine_iteration.has_cost
+        self.grad_fn = grad_fn
 
     def multilevel_step(self, X, data_fidelity, prior, params, y, physics):
         if params['level'] == 1 or self.ml_iter >= params['iml_max_iter']:
@@ -17,7 +18,7 @@ class MultiLevelIteration(OptimIterator):
 
         self.ml_iter += 1
         model = CoarseModel(prior, data_fidelity, physics, params)
-        diff = model(X, y, params)
+        diff = model(X, y, params, grad=self.grad_fn)
         step = 1.0
 
         if self.fine_iteration.has_cost:
