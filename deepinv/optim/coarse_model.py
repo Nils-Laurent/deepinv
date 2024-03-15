@@ -1,5 +1,5 @@
 import torch
-from .info_transfer import WaveletTransfer
+from .info_transfer import DownsamplingTransfer
 
 
 class CoarseModel(torch.nn.Module):
@@ -8,26 +8,23 @@ class CoarseModel(torch.nn.Module):
         self.g = prior
         self.f = data_fidelity
         self.physics = physics
-        self.cph = physics.to_coarse()
-        self.cit = WaveletTransfer(wavelet_type=params_ml['cit'])
+        self.cph = None
+        self.cit_str = params_ml['cit']
+        self.cit_op = None
 
-    @staticmethod
-    def stepsize_vec_mse(iteration, x0, data_fidelity, prior, params, y, physics):
-        from deepinv.optim.optim_iterators.multi_level import MultiLevelIteration
-        cit = WaveletTransfer(wavelet_type=params['cit'])
-        cit.build_cit_matrices(x0)
-        sz_vec = []
-        ph = physics
-        for i in range(0, params['level']):
-            level_params = MultiLevelIteration.get_level_params(params)
-            sz = iteration.denoiser_MSE_step(x0, data_fidelity, prior, y, ph, level_params)
-            x0 = cit.projection(x0)
-            y = cit.projection(y)
-            cit.build_cit_matrices(x0)
-            ph = ph.to_coarse()
-            sz_vec.append(sz.item())
-        sz_vec.reverse()
-        return sz_vec
+    def projection(self, x):
+        if self.cit_op is None:
+            self.cit_op = DownsamplingTransfer(x)
+            if self.cph is None:
+                self.cph = self.physics.to_coarse(self.cit_op)
+        x_proj = self.cit_op.projection(x)
+        return x_proj
+
+    def prolongation(self, x):
+        if self.cit_op is None:
+            self.cit_op = DownsamplingTransfer(x)
+        x_prol = self.cit_op.prolongation(x)
+        return x_prol
 
     def grad(self, x, y, physics, params):
         grad_f = self.f.grad(x, y, physics)
@@ -61,12 +58,11 @@ class CoarseModel(torch.nn.Module):
         if isinstance(X['est'], torch.Tensor):
             x0_h = X['est']
         else:
-            x0_h = X['est'][0] # primal value of 'est'
+            x0_h = X['est'][0]  # primal value of 'est'
 
         # Projection
-        self.cit.build_cit_matrices(x0_h)
-        x0 = self.cit.projection(x0_h)
-        y = self.cit.projection(y_h)
+        x0 = self.projection(x0_h)
+        y = self.projection(y_h)
 
         if params['scale_coherent_grad'] is True:
             if grad is None:
@@ -74,7 +70,7 @@ class CoarseModel(torch.nn.Module):
             else:
                 grad_x0 = grad(x0_h)
 
-            v = self.cit.projection(grad_x0)
+            v = self.projection(grad_x0)
             v -= self.grad(x0, y, self.cph, params)
 
             # Coarse gradient (first order coherent)
@@ -93,9 +89,9 @@ class CoarseModel(torch.nn.Module):
             data_fidelity=self.f,
             prior=self.g,
             custom_init=f_init,
-            max_iter=iters_vec[params_ml['level']-1],
+            max_iter=iters_vec[params_ml['level'] - 1],
             params_algo=params_ml.copy(),
         )
         x_est_coarse = model(y, self.cph)
 
-        return self.cit.prolongation(x_est_coarse - x0)
+        return self.prolongation(x_est_coarse - x0)

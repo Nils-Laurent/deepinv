@@ -85,25 +85,9 @@ class Inpainting(DecomposablePhysics):
         )
         return noise
 
-    def to_coarse(self, ratio=2):
-        # Fine level inpainting matrix
+    def to_coarse(self, cit):
         m_fine = self.mask.data
-
-        # Declare coarse level inpainting matrix
-        n_row_coarse = int(torch.floor(torch.tensor(m_fine.shape[2] / ratio)))
-        n_col_coarse = int(torch.floor(torch.tensor(m_fine.shape[3] / ratio)))
-        size = [m_fine.shape[0], m_fine.shape[1], n_row_coarse, n_col_coarse]
-        m_coarse = torch.zeros(size, device=m_fine.device).type(m_fine.dtype)
-
-        # Affect coarse level matrix coefficients
-        # current method : decimation by ratio
-        for ir in range(n_row_coarse):
-            m_coarse[:, :, ir, :] = m_fine[
-                :, :, ratio * ir, 0 : (ratio * n_col_coarse) : ratio
-            ]
-
-        # Create coarse physics using deepinv inpainting object
+        m_coarse = cit.projection(m_fine)
         c_mask = torch.squeeze(m_coarse, 0)
         coarse_physics = Inpainting(tensor_size=m_coarse.shape, mask=c_mask)
-
         return coarse_physics
