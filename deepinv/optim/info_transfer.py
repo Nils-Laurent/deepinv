@@ -34,7 +34,7 @@ class DownsamplingTransfer(InfoTransfer):
         else:
             raise NotImplementedError("Downsampling filter not implemented")
         filt = self.set_filter(k0)
-        self.op = Downsampling(x.shape, filter=filt, factor=2, device=x.device, padding="circular")
+        self.op = Downsampling(x.shape[1:], filter=filt, factor=2, device=x.device, padding="circular")
 
     def set_filter(self, k0):
         k0 = k0 / torch.sum(k0)
