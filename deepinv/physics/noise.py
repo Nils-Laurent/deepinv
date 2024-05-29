@@ -45,7 +45,8 @@ class GaussianNoise(torch.nn.Module):
         :returns: noisy measurements
         """
         self.update_parameters(sigma)
-        return x + torch.randn_like(x) * self.sigma
+        sigma_x = self.sigma[(...,) + (None,) * (x.ndim - 1)].to(x.device)
+        return x + torch.randn_like(x) * sigma_x
 
     def update_parameters(self, sigma=None, **kwargs):
         r"""
@@ -209,7 +210,8 @@ class PoissonGaussianNoise(torch.nn.Module):
 
         y = torch.poisson(x / self.gain) * self.gain
 
-        y += torch.randn_like(x) * self.sigma
+        sigma_x = self.sigma[(...,) + (None,) * (x.ndim - 1)].to(x.device)
+        y += torch.randn_like(x) * sigma_x
         return y
 
     def update_parameters(self, gain=None, sigma=None, **kwargs):
