@@ -335,7 +335,7 @@ class BaseOptim(nn.Module):
         init_X["cost"] = F
         return init_X
 
-    def init_metrics_fn(self, X_init, x_gt=None):
+    def init_metrics_fn(self, X_init, x_gt=None, time_iter=False):
         r"""
         Initializes the metrics.
 
@@ -345,6 +345,7 @@ class BaseOptim(nn.Module):
 
         :param dict X_init: dictionary containing the primal and auxiliary initial iterates.
         :param torch.Tensor x_gt: ground truth image, required for PSNR computation. Default: ``None``.
+        :param bool time_iter: if true, initializes time metric
         :return dict: A dictionary containing the metrics.
         """
         init = {}
@@ -356,14 +357,20 @@ class BaseOptim(nn.Module):
             psnr = [[] for i in range(self.batch_size)]
         init["psnr"] = psnr
         if self.has_cost:
-            init["cost"] = [[] for i in range(self.batch_size)]
+            if "cost" in X_init.keys():
+                cost = X_init["cost"].detach().cpu()
+                init["cost"] = [[cost[i].item()] for i in range(cost.shape[0])]
+            else:
+                init["cost"] = [[] for i in range(self.batch_size)]
         init["residual"] = [[] for i in range(self.batch_size)]
+        if time_iter is True:
+            init["time"] = [[0] for i in range(self.batch_size)]
         if self.custom_metrics is not None:
             for custom_metric_name in self.custom_metrics.keys():
                 init[custom_metric_name] = [[] for i in range(self.batch_size)]
         return init
 
-    def update_metrics_fn(self, metrics, X_prev, X, x_gt=None):
+    def update_metrics_fn(self, metrics, X_prev, X, x_gt=None, tk=None):
         r"""
         Function that compute all the metrics, across all batches, for the current iteration.
 
@@ -371,6 +378,7 @@ class BaseOptim(nn.Module):
         :param dict X_prev: dictionary containing the primal and dual previous iterates.
         :param dict X: dictionary containing the current primal and dual iterates.
         :param torch.Tensor x_gt: ground truth image, required for PSNR computation. Default: None.
+        :param tk: execution time of current iteration.
         :return dict: a dictionary containing the updated metrics.
         """
         if metrics is not None:
@@ -384,6 +392,8 @@ class BaseOptim(nn.Module):
                     .item()
                 )
                 metrics["residual"][i].append(residual)
+                if tk is not None:
+                    metrics["time"][i].append(tk)
                 if x_gt is not None:
                     psnr = cal_psnr(x[i], x_gt[i])
                     metrics["psnr"][i].append(psnr)
@@ -465,7 +475,7 @@ class BaseOptim(nn.Module):
         else:
             return False
 
-    def forward(self, y, physics, x_gt=None, compute_metrics=False):
+    def forward(self, y, physics, x_gt=None, compute_metrics=False, time_iter=False):
         r"""
         Runs the fixed-point iteration algorithm for solving :ref:`(1) <optim>`.
 
@@ -473,11 +483,12 @@ class BaseOptim(nn.Module):
         :param deepinv.physics physics: physics of the problem for the acquisition of ``y``.
         :param torch.Tensor x_gt: (optional) ground truth image, for plotting the PSNR across optim iterations.
         :param bool compute_metrics: whether to compute the metrics or not. Default: ``False``.
+        :param bool time_iter: if true, time execution for each iteration. Default: ``False``.
         :return: If ``compute_metrics`` is ``False``,  returns (torch.Tensor) the output of the algorithm.
                 Else, returns (torch.Tensor, dict) the output of the algorithm and the metrics.
         """
         X, metrics = self.fixed_point(
-            y, physics, x_gt=x_gt, compute_metrics=compute_metrics
+            y, physics, x_gt=x_gt, compute_metrics=compute_metrics, time_iter=time_iter
         )
         x = self.get_output(X)
         if compute_metrics:
