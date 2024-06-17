@@ -200,7 +200,9 @@ class FixedPoint(nn.Module):
         est[0] = x
         return {"est": est, "cost": F}
 
-    def forward(self, *args, compute_metrics=False, x_gt=None, **kwargs):
+    def forward(
+        self, *args, compute_metrics=False, x_gt=None, time_iter=False, **kwargs
+    ):
         r"""
         Loops over the fixed-point iterator as (1) and returns the fixed point.
 
@@ -214,6 +216,7 @@ class FixedPoint(nn.Module):
 
         :param bool compute_metrics: if ``True``, the metrics are computed along the iterations. Default: ``False``.
         :param torch.Tensor x_gt: ground truth solution. Default: ``None``.
+        :param bool time_iter: if true, time execution for each iteration. Default: ``False``.
         :param args: optional arguments for the iterator. Commonly (y,physics) where ``y`` (torch.Tensor y) is the measurement and
                     ``physics`` (deepinv.physics) is the physics model.
         :param kwargs: optional keyword arguments for the iterator.
@@ -227,7 +230,7 @@ class FixedPoint(nn.Module):
             else None
         )
         metrics = (
-            self.init_metrics_fn(X, x_gt=x_gt)
+            self.init_metrics_fn(X, x_gt=x_gt, time_iter=time_iter)
             if self.init_metrics_fn and compute_metrics
             else None
         )
@@ -237,6 +240,9 @@ class FixedPoint(nn.Module):
                 X
             )
         it = 0
+        it_time = None
+        start = torch.cuda.Event(enable_timing=time_iter)
+        end = torch.cuda.Event(enable_timing=time_iter)
 
         for it in tqdm(
             range(self.max_iter),
@@ -244,6 +250,9 @@ class FixedPoint(nn.Module):
         ):
 
             X_prev = X
+
+            if time_iter is True:
+                start.record()
             X = self.single_iteration(
                 X,
                 it,
@@ -253,10 +262,14 @@ class FixedPoint(nn.Module):
                 x_gt=x_gt,
                 **kwargs,
             )
+            if time_iter is True:
+                end.record()
+                torch.cuda.synchronize()
+                it_time = start.elapsed_time(end)
 
             if self.check_iteration:
                 metrics = (
-                    self.update_metrics_fn(metrics, X_prev, X, x_gt=x_gt)
+                    self.update_metrics_fn(metrics, X_prev, X, x_gt=x_gt, tk=it_time)
                     if self.update_metrics_fn and compute_metrics
                     else None
                 )
