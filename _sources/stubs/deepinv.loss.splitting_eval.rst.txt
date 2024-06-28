@@ -1,0 +1,15 @@
+﻿splitting\_eval
+===============
+
+.. currentmodule:: deepinv.loss
+
+.. autoclass:: splitting_eval
+   :members:
+   :show-inheritance:
+   :no-undoc-members:
+   :special-members: __mul__, __add__, __div__, __neg__, __sub__, __truediv__
+
+.. _sphx_glr_backref_deepinv.loss.splitting_eval:
+
+.. minigallery:: deepinv.loss.splitting_eval
+    :add-heading: Examples using ``splitting_eval``:
