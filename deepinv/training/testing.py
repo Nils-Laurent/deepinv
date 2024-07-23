@@ -18,6 +18,8 @@ def test(
     rescale_mode="clip",
     show_progress_bar=True,
     no_learning_method="A_dagger",
+    metric_logger=None,
+    time_iter=False,
     **kwargs,
 ):
     r"""
@@ -70,6 +72,8 @@ def test(
         rescale_mode=rescale_mode,
         no_learning_method=no_learning_method,
         show_progress_bar=show_progress_bar,
+        time_iter=time_iter,
+        metric_logger=metric_logger,
         **kwargs,
     )
     return trainer.test(test_dataloader, save_path=save_folder)

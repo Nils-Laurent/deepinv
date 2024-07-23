@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from deepinv.loss import PSNR, Loss, SupLoss, BaseLossScheduler
 from deepinv.physics import Physics
 from deepinv.physics.generator import PhysicsGenerator
+from deepinv.utils.logger import MetricLogger
 from deepinv.utils.plotting import prepare_images
 from torchvision.utils import save_image
 import inspect
@@ -201,6 +202,8 @@ class Trainer:
     compare_no_learning: bool = False
     no_learning_method: str = "A_adjoint"
     loop_physics_generator: bool = False
+    time_iter: bool = False
+    metric_logger: MetricLogger = None
 
     def setup_train(self):
         r"""
@@ -471,8 +474,10 @@ class Trainer:
                     y, physics, x_gt=x, compute_metrics=True, **kwargs
                 )
             x_net, self.conv_metrics = self.model(
-                y, physics, x_gt=x, compute_metrics=True, **kwargs
+                y, physics, x_gt=x, compute_metrics=True, timeit=self.time_iter, **kwargs
             )
+            if not (self.metric_logger is None):
+                self.metric_logger.add_iter(self.conv_metrics)
         else:
             x_net = self.model(y, physics, **kwargs)
 

@@ -2,6 +2,7 @@ import os
 import csv
 from datetime import datetime
 import platform
+import numpy
 import numpy as np
 
 
@@ -41,6 +42,55 @@ class AverageMeter(object):
     def __str__(self):
         fmtstr = "{name}={avg" + self.fmt + "}"
         return fmtstr.format(**self.__dict__)
+
+
+class MetricLogger(object):
+    def __init__(self, def_max_size=-1):
+        self.metric_iter = {}
+        self.metric_max = {}
+        self.size = {}
+        self.max_size = def_max_size
+
+    def has_key(self, metric_key):
+        return metric_key in self.metric_iter.keys()
+
+    def metric_matrix(self, metric_key):
+        n_x = self.size[metric_key]
+        n_y = self.metric_max[metric_key]
+        metric_data = numpy.empty((n_x, n_y))
+        for i in range(self.size[metric_key]):
+            vec = self.metric_iter[metric_key][i]
+            metric_data[i, range(len(vec))] = vec
+
+        return metric_data
+
+    def final_values(self, metric_key):
+        vec = []
+        for it in self.metric_iter[metric_key]:
+            vec.append(it[-1])
+
+        return vec
+
+    def add_iter(self, metrics: dict):
+        for k, v in metrics.items():
+            for i in range(len(v)):
+                self._add_elem(k, v[i])
+
+    def _add_elem(self, k, v):
+        if not (k in self.size.keys()):
+            self.size[k] = 0
+
+        if 0 < self.max_size <= self.size[k]:
+            return
+
+        if k not in self.metric_max.keys():
+            self.metric_max[k] = len(v)
+            self.metric_iter[k] = []
+
+        self.metric_max[k] = max(len(v), self.metric_max[k])
+        self.metric_iter[k].append(v)
+
+        self.size[k] += 1
 
 
 class ProgressMeter(object):
