@@ -1,3 +1,5 @@
+import timeit
+
 import torch
 import torch.nn as nn
 import warnings
@@ -241,8 +243,12 @@ class FixedPoint(nn.Module):
             )
         it = 0
         it_time = None
-        start = torch.cuda.Event(enable_timing=time_iter)
-        end = torch.cuda.Event(enable_timing=time_iter)
+        device_type = X['est'][0].device.type
+        is_cpu = isinstance(device_type, str) and len(device_type) > 2 and ('cpu' in device_type)
+        is_gpu = not is_cpu
+        if is_gpu:
+            start = torch.cuda.Event(enable_timing=time_iter)
+            end = torch.cuda.Event(enable_timing=time_iter)
 
         for it in tqdm(
             range(self.max_iter),
@@ -252,7 +258,17 @@ class FixedPoint(nn.Module):
             X_prev = X
 
             if time_iter is True:
-                start.record()
+                if it == 0:  # warmup
+                    self.single_iteration(X, it,*args, **kwargs)
+                    if is_gpu:
+                        start.record()
+                        end.record()
+                        torch.cuda.synchronize()
+                        start.elapsed_time(end)  # Time reported in milliseconds
+                if is_gpu:
+                    start.record()
+                if is_cpu:
+                    t0 = timeit.default_timer()
             X = self.single_iteration(
                 X,
                 it,
@@ -263,9 +279,13 @@ class FixedPoint(nn.Module):
                 **kwargs,
             )
             if time_iter is True:
-                end.record()
-                torch.cuda.synchronize()
-                it_time = start.elapsed_time(end)
+                if is_gpu:
+                    end.record()
+                    torch.cuda.synchronize()
+                    it_time = start.elapsed_time(end)  # Time reported in milliseconds
+                if is_cpu:
+                    it_time = timeit.default_timer() - t0  # Time reported in seconds
+                    it_time = 1000 * it_time  # set same unit as for GPU
 
             if self.check_iteration:
                 metrics = (
