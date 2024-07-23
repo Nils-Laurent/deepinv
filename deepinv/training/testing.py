@@ -24,6 +24,8 @@ def test(
     plot_only_first_batch=True,
     plot_measurements=True,
     show_progress_bar=True,
+    metric_logger=None,
+    time_iter=False,
     **kwargs,
 ):
     r"""
@@ -140,6 +142,9 @@ def test(
                 x_net, optim_metrics = model(
                     y, physics_cur, x_gt=x, compute_metrics=True
                 )
+            elif not (metric_logger is None):
+                x_net, optim_metrics = model(y, physics_cur, x_gt=x, compute_metrics=True, time_iter=time_iter)
+                metric_logger.add_iter(optim_metrics)
             else:
                 x_net = model(y, physics_cur)
 
