@@ -1,9 +1,9 @@
-import timeit
-
 import torch
 import torch.nn as nn
 import warnings
 from tqdm import tqdm
+
+from deepinv.optim.timing import FixedPointTimer
 
 
 class FixedPoint(nn.Module):
@@ -226,13 +226,21 @@ class FixedPoint(nn.Module):
                     ``metrics`` the computed along the iterations if ``compute_metrics`` is ``True`` or ``None``
                     otherwise.
         """
-        X = (
-            self.init_iterate_fn(*args, F_fn=self.iterator.F_fn)
-            if self.init_iterate_fn
-            else None
-        )
+        timer = None
+        it_time = None
+        X = None
+        if self.init_iterate_fn is not None:
+            X = self.init_iterate_fn(*args, F_fn=self.iterator.F_fn)
+            if time_iter is True:
+                timer = FixedPointTimer(device=X['est'][0].device)
+                timer.warmup()
+                timer.start()
+                # previous call to init_iterate_fn was a warmup
+                X = self.init_iterate_fn(*args, F_fn=self.iterator.F_fn)
+                it_time = timer.end()
+
         metrics = (
-            self.init_metrics_fn(X, x_gt=x_gt, time_iter=time_iter)
+            self.init_metrics_fn(X, x_gt=x_gt, time=it_time)
             if self.init_metrics_fn and compute_metrics
             else None
         )
@@ -242,13 +250,6 @@ class FixedPoint(nn.Module):
                 X
             )
         it = 0
-        it_time = None
-        device_type = X['est'][0].device.type
-        is_cpu = isinstance(device_type, str) and len(device_type) > 2 and ('cpu' in device_type)
-        is_gpu = not is_cpu
-        if is_gpu:
-            start = torch.cuda.Event(enable_timing=time_iter)
-            end = torch.cuda.Event(enable_timing=time_iter)
 
         for it in tqdm(
             range(self.max_iter),
@@ -259,15 +260,8 @@ class FixedPoint(nn.Module):
             if time_iter is True:
                 if it == 0:  # warmup
                     self.single_iteration(X, it,*args, **kwargs)
-                    if is_gpu:
-                        start.record()
-                        end.record()
-                        torch.cuda.synchronize()
-                        start.elapsed_time(end)  # Time reported in milliseconds
-                if is_gpu:
-                    start.record()
-                if is_cpu:
-                    t0 = timeit.default_timer()
+                    timer.warmup()
+                timer.start()
             X = self.single_iteration(
                 X,
                 it,
@@ -278,17 +272,11 @@ class FixedPoint(nn.Module):
                 **kwargs,
             )
             if time_iter is True:
-                if is_gpu:
-                    end.record()
-                    torch.cuda.synchronize()
-                    it_time = start.elapsed_time(end)  # Time reported in milliseconds
-                if is_cpu:
-                    it_time = timeit.default_timer() - t0  # Time reported in seconds
-                    it_time = 1000 * it_time  # set same unit as for GPU
+                it_time = timer.end()
 
             if self.check_iteration:
                 metrics = (
-                    self.update_metrics_fn(metrics, X_prev, X, x_gt=x_gt, tk=it_time)
+                    self.update_metrics_fn(metrics, X_prev, X, x_gt=x_gt, time=it_time)
                     if self.update_metrics_fn and compute_metrics
                     else None
                 )

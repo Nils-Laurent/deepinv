@@ -335,7 +335,7 @@ class BaseOptim(nn.Module):
         init_X["cost"] = F
         return init_X
 
-    def init_metrics_fn(self, X_init, x_gt=None, time_iter=False):
+    def init_metrics_fn(self, X_init, x_gt=None, time=None):
         r"""
         Initializes the metrics.
 
@@ -345,7 +345,7 @@ class BaseOptim(nn.Module):
 
         :param dict X_init: dictionary containing the primal and auxiliary initial iterates.
         :param torch.Tensor x_gt: ground truth image, required for PSNR computation. Default: ``None``.
-        :param bool time_iter: if true, initializes time metric
+        :param time: execution time of current iteration.
         :return dict: A dictionary containing the metrics.
         """
         init = {}
@@ -363,14 +363,14 @@ class BaseOptim(nn.Module):
             else:
                 init["cost"] = [[] for i in range(self.batch_size)]
         init["residual"] = [[] for i in range(self.batch_size)]
-        if time_iter is True:
-            init["time"] = [[0] for i in range(self.batch_size)]
+        if time is not None:
+            init["time"] = [[time] for i in range(self.batch_size)]
         if self.custom_metrics is not None:
             for custom_metric_name in self.custom_metrics.keys():
                 init[custom_metric_name] = [[] for i in range(self.batch_size)]
         return init
 
-    def update_metrics_fn(self, metrics, X_prev, X, x_gt=None, tk=None):
+    def update_metrics_fn(self, metrics, X_prev, X, x_gt=None, time=None):
         r"""
         Function that compute all the metrics, across all batches, for the current iteration.
 
@@ -378,7 +378,7 @@ class BaseOptim(nn.Module):
         :param dict X_prev: dictionary containing the primal and dual previous iterates.
         :param dict X: dictionary containing the current primal and dual iterates.
         :param torch.Tensor x_gt: ground truth image, required for PSNR computation. Default: None.
-        :param tk: execution time of current iteration.
+        :param time: execution time of current iteration.
         :return dict: a dictionary containing the updated metrics.
         """
         if metrics is not None:
@@ -392,8 +392,8 @@ class BaseOptim(nn.Module):
                     .item()
                 )
                 metrics["residual"][i].append(residual)
-                if tk is not None:
-                    metrics["time"][i].append(tk)
+                if time is not None:
+                    metrics["time"][i].append(time)
                 if x_gt is not None:
                     psnr = cal_psnr(x[i], x_gt[i])
                     metrics["psnr"][i].append(psnr)
