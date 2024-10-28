@@ -6,13 +6,14 @@ from deepinv.optim.optimizers import create_iterator
 import numpy as np
 
 
-def get_DPIR_params(noise_level_img):
+def get_DPIR_params(noise_level_img, max_iter = 8):
     r"""
     Default parameters for the DPIR Plug-and-Play algorithm.
 
+    :param max_iter:
     :param float noise_level_img: Noise level of the input image.
     """
-    max_iter = 8
+    #max_iter = 8
     s1 = 49.0 / 255.0
     s2 = noise_level_img
     sigma_denoiser = np.logspace(np.log10(s1), np.log10(s2), max_iter).astype(
